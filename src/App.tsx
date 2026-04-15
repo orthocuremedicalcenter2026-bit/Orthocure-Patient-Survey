@@ -458,23 +458,39 @@ export default function App() {
     return (sum / totalResponses).toFixed(1);
   };
 
+  const calculateResponseAvg = (item: SurveyResponse) => {
+    const deptQuestions = SURVEY_QUESTIONS[item.department] || [];
+    const ratingQuestions = deptQuestions.filter(q => q.type === 'rating');
+    if (ratingQuestions.length === 0) return "0.0";
+    
+    let sum = 0;
+    let count = 0;
+    
+    ratingQuestions.forEach(q => {
+      const val = parseInt(item[q.id] as string);
+      if (!isNaN(val) && val > 0) {
+        sum += val;
+        count++;
+      }
+    });
+    
+    return count > 0 ? (sum / count).toFixed(1) : "0.0";
+  };
+
   const avgCleanliness = calculateAvg('cleanliness');
   const avgReception = calculateAvg('reception');
   const avgDoctorProf = calculateAvg('doctor_prof');
 
-  // Calculate satisfaction percentage (based on rating questions - now out of 5)
+  // Calculate satisfaction percentage (based on all rating questions)
   const satisfactionRate = totalResponses > 0 
-    ? Math.round((parseFloat(avgCleanliness) + parseFloat(avgReception) + parseFloat(avgDoctorProf)) / 15 * 100)
+    ? Math.round(filteredData.reduce((acc, curr) => acc + parseFloat(calculateResponseAvg(curr)), 0) / totalResponses / 5 * 100)
     : 0;
 
   const deptPerformance = Object.keys(SURVEY_QUESTIONS).map(d => {
     const deptData = filteredData.filter(item => item.department === d);
     if (deptData.length === 0) return { name: d, score: 0 };
-    const sum = deptData.reduce((acc, curr: any) => {
-      const c = parseInt(curr.cleanliness) || 0;
-      const r = parseInt(curr.reception) || 0;
-      const p = parseInt(curr.doctor_prof) || 0;
-      return acc + (c + r + p) / 3;
+    const sum = deptData.reduce((acc, curr) => {
+      return acc + parseFloat(calculateResponseAvg(curr));
     }, 0);
     return { 
       name: isRtl ? (
@@ -1308,14 +1324,20 @@ export default function App() {
                             <td className="px-2 py-2 font-medium text-slate-700 truncate">{item.userName || '-'}</td>
                             <td className="px-2 py-2 font-mono text-[10px]">{item.userPhone || '-'}</td>
                             <td className="px-2 py-2 text-center">
-                              <span className={cn(
-                                "px-2 py-0.5 rounded-full font-black text-[10px] badge",
-                                parseInt(item.overall_exp) >= 4 ? "bg-emerald-50 text-emerald-600" : 
-                                parseInt(item.overall_exp) === 3 ? "bg-amber-50 text-amber-600" : 
-                                "bg-red-50 text-red-600"
-                              )}>
-                                {item.overall_exp}
-                              </span>
+                              {(() => {
+                                const avg = calculateResponseAvg(item);
+                                const avgNum = parseFloat(avg);
+                                return (
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded-full font-black text-[10px] badge",
+                                    avgNum >= 4 ? "bg-emerald-50 text-emerald-600" : 
+                                    avgNum >= 3 ? "bg-amber-50 text-amber-600" : 
+                                    "bg-red-50 text-red-600"
+                                  )}>
+                                    {avg}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td className="px-2 py-2 text-[10px] leading-relaxed whitespace-normal break-words" title={item.comment}>
                               {item.comment || '-'}
